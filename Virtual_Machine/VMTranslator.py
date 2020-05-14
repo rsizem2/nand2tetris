@@ -1,8 +1,7 @@
 """
 VM Translator following the API outlined in the book. 
 
-Takes one or no arguments. If no arguments, the script translate all .vm files 
-found in the current directory. If the argument is a .vm file then that file is 
+Takes one arguments. If the argument is a .vm file then that file is
 translated, if a directory is given then all files in that directory are translated.
 """
 
@@ -12,7 +11,7 @@ class VMTranslator():
     # All .vm files written to filename.asm
     # one parser for each .vm file
     # one code writer for everything
-    
+
     def __init__(self, filename):
         if os.path.isdir(filename):
             #print('Directory Given')
@@ -39,9 +38,9 @@ class VMTranslator():
             self._code.filename(file.replace('.vm','').split('/')[-1])
             self.translate()
         self._code.close()
-    
+
     def translate(self):
-        # using input from parser, translate and output 
+        # using input from parser, translate and output
         while self._parser.has_more_commands():
             self._parser.advance()
             if self._parser.command_type() in ['C_ARITHMETIC','C_BOOLEAN']:
@@ -62,9 +61,9 @@ class VMTranslator():
                 self._code.write_call(self._parser.arg1(), self._parser.arg2())
             elif self._parser.command_type() == 'C_RETURN':
                 self._code.write_return()
-    
+
 class Parser():
-    
+
     def __init__(self, filename):
         self._vm = iter(self.preprocess(filename))
         self._current = None
@@ -79,19 +78,19 @@ class Parser():
         self._type = None
         self._arg1 = None
         self._arg2 = None
-        
+
     def preprocess(self, filename):
         with open(filename, 'r') as temp:
             assembly = temp.readlines()
         temp = []
         for line in assembly:
             # remove comments and white space
-            line = line.split('//')[0].strip()   
+            line = line.split('//')[0].strip()
             if line:
-                # if nonempty, then it should contain valid asm                                    
+                # if nonempty, then it should contain valid asm
                 temp += [line]
         return temp
-        
+
     def has_more_commands(self):
         return not self._finished
 
@@ -119,19 +118,19 @@ class Parser():
 
     def command_type(self):
         return self._type
-    
+
     def command(self):
         return self._call
-    
+
     def arg1(self):
         return self._arg1
-    
+
     def arg2(self):
         return self._arg2
-        
-        
+
+
 class CodeWriter():
-    
+
     def __init__(self, filename):
         self._name = filename
         self._file = open(filename, 'w')
@@ -155,11 +154,11 @@ class CodeWriter():
            'pointer': ['@3\n','D=A\n'],
            'temp': ['@5\n','D=A\n']}
         self._counter = 0
-        
+
     def filename(self, name):
         self._name = name
         pass
-    
+
     def write_arithmetic(self, command):
         self._file.writelines(['// ' + command + '\n'])
         if command in ['eq', 'gt', 'lt']:
@@ -182,7 +181,7 @@ class CodeWriter():
             self._counter += 1
         else:
             self._file.writelines(self._command[command])
-    
+
     def write_pushpop(self, command, segment, index):
         if command == 'C_PUSH':
             self._file.writelines(['//' + ' push ' + segment + ' ' + index + '\n'])
@@ -220,7 +219,7 @@ class CodeWriter():
             elif segment == 'static':
                 self._file.writelines(self._command['POP_D'])
                 self._file.writelines(['@' + self._name + '.'+ index +'\n','M=D\n'])
-    
+
     def write_label(self, label):
         if self._current_function is None:
             self._file.writelines(['('+label+')\n'])
@@ -247,7 +246,7 @@ class CodeWriter():
             self._file.writelines(['@' + self._current_function + '$' + label+'\n'])
             self._file.writelines(['D;JNE\n'])
         pass
-    
+
     def write_call(self, name, nargs):
         #Generate unique return address based off of line number
         self._file.writelines(['@CALL'+str(self._counter)+'\n','D=A\n'])
@@ -267,7 +266,7 @@ class CodeWriter():
         self._file.writelines(['@'+name+'\n','0;JMP\n'])
         self._file.writelines(['(CALL'+str(self._counter)+')\n'])
         self._counter += 1
-    
+
     def write_return(self):
         #Use R14 to store FRAME as defined on p.163
         self._file.writelines(['@LCL\n','D=M\n','@R14\n','M=D\n','@5\n'])
@@ -283,7 +282,7 @@ class CodeWriter():
         self._file.writelines(['@R14\n','AM=M-1\n','D=M\n','@THIS\n','M=D\n'])
         self._file.writelines(['@R14\n','AM=M-1\n','D=M\n','@ARG\n','M=D\n'])
         self._file.writelines(['@R14\n','A=M-1\n','D=M\n','@LCL\n','M=D\n'])
-        self._file.writelines(['@R15\n','A=M\n','0;JEQ\n'])      
+        self._file.writelines(['@R15\n','A=M\n','0;JEQ\n'])
 
     def write_function(self, name, nlocals):
         self._file.writelines(['//' + ' function ' + name + ' ' + nlocals + '\n'])
@@ -291,16 +290,16 @@ class CodeWriter():
         self._current_function = name
         for _ in range(int(nlocals)):
             self.write_pushpop('C_PUSH', 'constant', '0')
-    
+
     def write_init(self):
         self._file.writelines(['@256\n','D=A\n','@SP\n','M=D\n'])
         self.write_call('Sys.init', '0')
-    
+
     def close(self):
         self._file.writelines(['(END)\n', '@END\n', '0;JMP'])
         self._file.close()
-    
-    
+
+
 if __name__ == '__main__':
     try:
         filename = sys.argv[1]

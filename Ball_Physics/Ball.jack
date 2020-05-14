@@ -1,0 +1,107 @@
+/** Implements a graphical ball with velocity and collision detection. */
+class Ball {
+	field int pos_x, pos_y; 	// screen location of the ball's center
+	field int vel_x, vel_y;		// x and y velocity of the ball
+	field int radius; 			// radius of the ball, in pixels
+	
+	/** Constructs a new ball with a center, velocity and radius. */
+	constructor Ball new(int posX, int posY, int velX, int velY, int rad) {
+		let pos_x = posX;
+		let pos_y = posY;
+		let vel_x = velX;
+		let vel_y = velY;
+		let radius = rad;
+		do draw();
+		return this;
+	}
+
+	/** Getters */
+	method int getX()   {return pos_x;}
+	method int getY()   {return pos_y;}
+	method int getVX()  {return vel_x;}
+	method int getVY()  {return vel_y;}
+	method int getRad() {return radius;}
+	
+	/** Setters */
+	method void setVX(int VX) {
+		let vel_x = VX;
+		return;
+		}
+	method void setVY(int VY) {
+		let vel_y = VY;
+		return;
+		}
+
+	/** Disposes this ball object. */
+	method void dispose() {
+		do erase();
+		do Memory.deAlloc(this);
+		return;
+	}
+
+	/** Draws the ball on the screen. */
+	method void draw() {
+		do Screen.setColor(true);
+		do Screen.drawCircle(pos_x, pos_y, radius);
+		return;
+	}
+
+	/** Erases the ball from the screen. */
+	method void erase() {
+		do Screen.setColor(false);
+		do Screen.drawCircle(pos_x, pos_y, radius);
+		return;
+	}
+
+	/** Moves the ball based on the velocity. */
+	method void move() {
+		do Screen.setColor(false);
+        do Screen.drawCircle(pos_x, pos_y, radius);
+		if ((pos_y < radius) | (pos_y > (256 - radius))){
+			// horizontal wall collision
+			let vel_y = -vel_y;
+			} 
+		if (((pos_x < radius) | (pos_x > (512 - radius)))) {
+			// vertical wall collision
+			let vel_x = -vel_x;
+			}
+		let pos_x = pos_x + vel_x;
+		let pos_y = pos_y + vel_y;
+		do Screen.setColor(true);
+		do Screen.drawCircle(pos_x, pos_y, radius);
+		return;
+	}
+	
+	/** Checks for collision between two balls **/
+	method void collide(Ball other){
+		/** Simplified collision check, since integer arithmetic*/
+		let dist_x = Math.abs(pos_x - other.getX());
+		let dist_y = Math.abs(pos_y - other.getY());
+		let sqrd_dist = Math.multiply(dist_x, dist_x) + Math.multiply(dist_y, dist_y);
+		let min_sep = radius + other.getRad();
+		if (sqrd_dist < Math.multiply(min_sep, min_sep)){
+			/** Conserve overall momentum */
+			let new_x = Math.divide(vel_x + other.getVX(), 2);
+			if (pos_x < other.getX()){
+				/** ball 1 to the left of ball 2 */
+				let vel_x = -new_x;
+				other.setVX(new_x);
+			} else {
+				/** ball 1 to the right of ball 1 */
+				let vel_x = new_x;
+				other.setVX(-new_x);
+			}
+			let new_y = Math.divide(vel_y + other.getVY(),2);
+			if (pos_y < other.getY()){
+				/** ball 1 above ball 2 */
+				let vel_y = -new_y;
+				other.setVY(new_y);
+			} else {
+				/** ball 1 below ball 1 */
+				let vel_y = new_y;
+				other.setVY(-new_y);
+			}
+		}
+		return;
+	}
+}

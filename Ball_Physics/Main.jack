@@ -1,0 +1,27 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/09/Square/Main.jack
+
+/** Initializes a new Square Dance game and starts running it. */
+class Main {
+	function void main() {
+		var SquareGame game;
+		var int init_vx1;
+		var int init_vx2;
+		var int init_vy1;
+		var int init_vy2;
+		let init_vx1 = Keyboard.readInt("Enter Ball 1's x velocity:");
+		let init_vy1 = Keyboard.readInt("Enter Ball 1's y velocity:");
+		let init_vx2 = Keyboard.readInt("Enter Ball 2's x velocity:");
+		let init_vy2 = Keyboard.readInt("Enter Ball 2's y velocity:");
+		do Output.printString("Press q to quit the demo and exit the program.");
+		do Output.println();
+        let demo = BallDemo.new(init_vx1, init_vy1, init_vx2, init_vy2);
+        do demo.run();
+		do Output.printString("Demo ended. I hope you enjoyed it :)");
+		do Output.println();
+        do demo.dispose();
+        return;
+    }
+}

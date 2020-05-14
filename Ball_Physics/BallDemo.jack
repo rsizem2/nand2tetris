@@ -1,0 +1,51 @@
+/**
+ * Implements a basic demo of collision physics involving 
+ * two round objects bouncing off of walls and each other.
+ */
+
+class BallDemo {
+	field Ball b1; 	// first ball of the demo
+	field Ball b2; 	// the second ball
+
+	/** Constructs a new demo. */
+	constructor BallDemo new(int vx1, int vy1, int vx2, int vy2) {
+		// Creates the two balls given by the user
+		let b1 = Ball.new(128, 128, vx1, vy1, 10);
+		let b2 = Ball.new(384, 128, vx2, vy2, 10);  
+		return this;		// initial state
+	}
+
+	/** Disposes this demo. */
+	method void dispose() {
+		do b1.dispose();
+		do b2.dispose();
+		do Memory.deAlloc(this);
+		return;
+	}
+
+	/** Moves the balls based on collisions. */
+	method void moveBalls() {
+		do b1.collide(b2);
+		do b1.move();
+		do b2.move();
+		do Sys.wait(5);  // delays the next movement
+		return;
+	}
+
+	/** Runs the game: handles the user's inputs and moves the square accordingly */
+	method void run() {
+		var char key;  // the key currently pressed by the user
+		var boolean exit;
+		let exit = false;
+		
+		while (~exit) {
+			let key = Keyboard.keyPressed();
+			do moveBalls();
+			if (key = 81)  { let exit = true; }     // q key
+		}
+		return;
+	}
+}
+
+
+
