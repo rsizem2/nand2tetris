@@ -1,26 +1,26 @@
 """
-VM Translator following the API outlined in the book. 
+Translates .vm code files into HACK assembly .asm files. Follows the API outlined in the book.
 
-Takes one arguments. If the argument is a .vm file then that file is
-translated, if a directory is given then all files in that directory are translated.
+To use this script run:
+	- VMTranslator.py <directory>
+	- VMTranslator.py <vm file>
 """
 
 import sys, os
 
+
 class VMTranslator():
-    # All .vm files written to filename.asm
-    # one parser for each .vm file
-    # one code writer for everything
+    '''
+    Manages the translation effort, bridging the gap between the Parser and Codewriter objects. 
+    A new Parser is created for each file in the directory.
+    '''
 
     def __init__(self, filename):
         if os.path.isdir(filename):
-            #print('Directory Given')
             self._files = [filename + '/' + x for x in os.listdir(filename) if x.endswith(".vm")]
-            #print('Files to be translated:', self._files)
             self._isdir = True
             self._name = filename + '/' + filename.split('/')[-1] + '.asm'
         elif os.path.isfile(filename) and filename.endswith('.vm'):
-            #print('File given:', filename)
             self._files = [filename]
             self._isdir = False
             self._name = filename.replace('.vm','.asm')
@@ -31,7 +31,6 @@ class VMTranslator():
         self._output = []
         self._code = CodeWriter(self._name)
         if self._isdir:
-            #print('writing initilization code')
             self._code.write_init()
         for file in self._files:
             self._parser = Parser(file)
@@ -63,6 +62,9 @@ class VMTranslator():
                 self._code.write_return()
 
 class Parser():
+    '''
+    Parses a single .vm file line by line into its components.
+    '''
 
     def __init__(self, filename):
         self._vm = iter(self.preprocess(filename))
@@ -130,6 +132,9 @@ class Parser():
 
 
 class CodeWriter():
+    '''
+    Generates .asm code based on the parsed VM commands, outputs to a file given as input.
+    '''
 
     def __init__(self, filename):
         self._name = filename
@@ -157,12 +162,10 @@ class CodeWriter():
 
     def filename(self, name):
         self._name = name
-        pass
 
     def write_arithmetic(self, command):
         self._file.writelines(['// ' + command + '\n'])
         if command in ['eq', 'gt', 'lt']:
-            # pop off the stack
             self._file.writelines(self._command['POP_D'])
             # subtract D from value on top of stack
             self._file.writelines(['A=A-1\n','D=M-D\n'])
@@ -200,7 +203,8 @@ class CodeWriter():
                 #Store contents of base + index in D
                 self._file.writelines(['@'+index+'\n','A=D+A\n','D=M\n'])
                 self._file.writelines(self._command['PUSH_D'])
-            else: # static
+            else: 
+                # static
                 self._file.writelines(['@' + self._name + '.'+ index +'\n','D=M\n'])
                 self._file.writelines(self._command['PUSH_D'])
         elif command == 'C_POP':
@@ -248,8 +252,9 @@ class CodeWriter():
         pass
 
     def write_call(self, name, nargs):
-        #Generate unique return address based off of line number
+        # Generate unique return address based off of counter
         self._file.writelines(['@CALL'+str(self._counter)+'\n','D=A\n'])
+        # push saved lcl, arg, this, that to function frame on stack
         self._file.writelines(self._command['PUSH_D'])
         self._file.writelines(['@LCL\n','D=M\n'])
         self._file.writelines(self._command['PUSH_D'])
@@ -259,7 +264,7 @@ class CodeWriter():
         self._file.writelines(self._command['PUSH_D'])
         self._file.writelines(['@THAT\n','D=M\n'])
         self._file.writelines(self._command['PUSH_D'])
-		#Set ARG to SP-n-5 where n is hte number of args
+		# Set ARG to SP-n-5 where n is the number of args
         self._file.writelines(['@'+nargs+'\n','D=A\n','@5\n','D=D+A\n'])
         self._file.writelines(['@SP\n','D=M-D\n','@ARG\n','M=D\n'])
         self._file.writelines(['@SP\n','D=M\n','@LCL\n','M=D\n'])
@@ -268,16 +273,16 @@ class CodeWriter():
         self._counter += 1
 
     def write_return(self):
-        #Use R14 to store FRAME as defined on p.163
+        # Use R14 to store FRAME as defined on p.163
         self._file.writelines(['@LCL\n','D=M\n','@R14\n','M=D\n','@5\n'])
-        #Use R15 to store the RET, note that D is still set to FRAME.
+        # Use R15 to store the RET, note that D is still set to FRAME.
         self._file.writelines(['A=D-A\n','D=M\n','@R15\n','M=D\n'])
-        #Pop return value, store at ARG
+        # Pop return value, store at ARG
         self._file.writelines(self._command['POP_D'])
         self._file.writelines(['@ARG\n','A=M\n','M=D\n'])
-        #Set SP to ARG+1
+        # Set SP to ARG+1
         self._file.writelines(['@ARG\n','D=M+1\n','@SP\n','M=D\n'])
-        #Retrieve and decrement FRAME variable
+        # Retrieve and decrement FRAME variable
         self._file.writelines(['@R14\n','AM=M-1\n','D=M\n','@THAT\n','M=D\n'])
         self._file.writelines(['@R14\n','AM=M-1\n','D=M\n','@THIS\n','M=D\n'])
         self._file.writelines(['@R14\n','AM=M-1\n','D=M\n','@ARG\n','M=D\n'])

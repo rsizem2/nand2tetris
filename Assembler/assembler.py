@@ -8,6 +8,13 @@ directory.
 import os
 
 class Assembler():
+    '''
+    Takes a single .asm file as input and outputs a .hack file with the same name.
+    The assembling takes three passes.
+        - Preprocess: Remove whitespace and comments
+        - First Pass: Generate symbol table and remove symbolic labels
+        - Second Pass: Translates the .asm file into a .hack file, line by line.
+    '''
     
     def __init__(self, filename):
         self._input = self.preprocess(filename)
@@ -75,6 +82,9 @@ class Assembler():
         print(self._name + '.asm', 'translated to', 'hack/' + self._name + '.hack')
     
 class Parser():
+    '''
+    Parses a .asm command into it's relevant components.
+    '''
     
     def __init__(self, cleanasm):
         self._asm = iter(cleanasm)
@@ -144,6 +154,9 @@ class Parser():
         return self._jump
                     
 class SymbolTable():
+    '''
+    Manages a dictionary of symbols and values to be used by the Assembler
+    '''
     
     def __init__(self):
         self._varaddr = 16
@@ -173,6 +186,9 @@ class SymbolTable():
         return self._table.get(symbol)
    
 class Code():
+    '''
+    Converts parsed machine language code into binary.
+    '''
     
     def __init__(self):
         self._dest = {None:'000', 'M':'001', 
@@ -207,7 +223,6 @@ class Code():
     
        
 if __name__ == '__main__':
-    # get asm filenames in current directory
     asmfiles = list()
     if os.path.isdir('asm'):
         asmfiles = ['asm/' + x for x in os.listdir('asm/') if x.endswith(".asm")]
