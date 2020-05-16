@@ -1,0 +1,79 @@
+function BallDemo.new 0
+push constant 2
+call Memory.alloc 1
+pop pointer 0
+push constant 128
+push constant 128
+push argument 0
+push argument 1
+call Ball.new 4
+pop this 0
+push constant 384
+push constant 128
+push argument 2
+push argument 3
+call Ball.new 4
+pop this 1
+push pointer 0
+return
+function BallDemo.dispose 0
+push argument 0
+pop pointer 0
+push this 0
+call Ball.dispose 1
+pop temp 0
+push this 1
+call Ball.dispose 1
+pop temp 0
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+push constant 0
+return
+function BallDemo.moveBalls 0
+push argument 0
+pop pointer 0
+push this 0
+push this 1
+call Ball.collide 2
+pop temp 0
+push this 0
+call Ball.move 1
+pop temp 0
+push this 1
+call Ball.move 1
+pop temp 0
+push constant 3
+call Sys.wait 1
+pop temp 0
+push constant 0
+return
+function BallDemo.run 2
+push argument 0
+pop pointer 0
+push constant 0
+pop local 1
+label WHILE_EXP0
+push local 1
+not
+not
+if-goto WHILE_END0
+call Keyboard.keyPressed 0
+pop local 0
+push pointer 0
+call BallDemo.moveBalls 1
+pop temp 0
+push local 0
+push constant 81
+eq
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push constant 0
+not
+pop local 1
+label IF_FALSE0
+goto WHILE_EXP0
+label WHILE_END0
+push constant 0
+return

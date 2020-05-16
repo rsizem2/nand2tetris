@@ -10,8 +10,8 @@ class BallDemo {
 	/** Constructs a new demo. */
 	constructor BallDemo new(int vx1, int vy1, int vx2, int vy2) {
 		// Creates the two balls given by the user
-		let b1 = Ball.new(128, 128, vx1, vy1, 10);
-		let b2 = Ball.new(384, 128, vx2, vy2, 10);  
+		let b1 = Ball.new(128, 128, vx1, vy1);
+		let b2 = Ball.new(384, 128, vx2, vy2);  
 		return this;		// initial state
 	}
 
@@ -28,7 +28,7 @@ class BallDemo {
 		do b1.collide(b2);
 		do b1.move();
 		do b2.move();
-		do Sys.wait(5);  // delays the next movement
+		do Sys.wait(3);  // delays the next movement
 		return;
 	}
 
