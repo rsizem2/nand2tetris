@@ -28,7 +28,7 @@ class BallDemo {
 		do b1.collide(b2);
 		do b1.move();
 		do b2.move();
-		do Sys.wait(3);  // delays the next movement
+		do Sys.wait(2);  // delays the next movement
 		return;
 	}
 

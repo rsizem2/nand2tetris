@@ -1,9 +1,7 @@
 """
-Python module which implements the Hack Assembler using the OOP API.
+Python module which implements the Hack Assembler outlined in chapter 6 of 'The Elements of Computing Systems' using the OOP API.
 
-Place this script in the same folder as the HACK asm files you want to translate
-into binary. Alternatively, create an 'asm' folder containing these files in the 
-directory.  
+Place this script in the same folder as the HACK asm files you want to translate into binary. Alternatively, create an 'asm' folder containing these files in the directory.  
 """
 import os
 

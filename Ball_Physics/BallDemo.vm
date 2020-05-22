@@ -43,7 +43,7 @@ pop temp 0
 push this 1
 call Ball.move 1
 pop temp 0
-push constant 3
+push constant 2
 call Sys.wait 1
 pop temp 0
 push constant 0

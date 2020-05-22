@@ -16,11 +16,11 @@ class Ball {
 		let pos_y = posY;
 		let vel_x = velX;
 		let vel_y = velY;
-		let radius = 10;
-		let min_x = 11;
-		let max_x = 501;
-		let min_y = 22;
-		let max_y = 245;
+		let radius = 20;
+		let min_x = radius + 1;		// min/max keeps program from drawing out of bounds
+		let max_x = 512 - min_x;
+		let min_y = 12 + radius;
+		let max_y = 256 - min_x;
 		do draw();
 		return this;
 	}
@@ -28,10 +28,6 @@ class Ball {
 	/** Getters */
 	method int get_x()   {return pos_x;}
 	method int get_y()   {return pos_y;}
-	method int get_vx()  {return vel_x;}
-	method int get_vy()  {return vel_y;}
-	method int get_dir_x() {return dir_x;}
-	method int get_dir_y() {return dir_y;}
 
 
 	/** Setters */
@@ -69,13 +65,13 @@ class Ball {
 	method void move() {
 		do Screen.setColor(false);
         do Screen.drawCircle(pos_x, pos_y, radius);
-		if ((pos_x + vel_x) > max_x)) {
+		if ((pos_x + vel_x) > max_x) {
 			// ball will be too far right on next iteration
 			let pos_x = max_x;
 			let vel_x = -vel_x;
 		}
 		else {
-			if ((pos_x - vel_x) < min_x) {
+			if ((pos_x + vel_x) < min_x) {
 				// ball will be too far left on next iteration
 				let pos_x = min_x;
 				let vel_x = -vel_x;
@@ -85,19 +81,19 @@ class Ball {
 				let pos_x = pos_x + vel_x;
 			}
 		}
-		if ((pos_y + vel_y) > max_y)) {
-			// ball will be too far right on next iteration
+		if ((pos_y + vel_y) > max_y) {
+			// ball will be too high on next iteration
 			let pos_y = max_y;
 			let vel_y = -vel_y;
 		}
 		else {
-			if ((pos_y - vel_y) < min_y) {
-				// ball will be too far left on next iteration
+			if ((pos_y + vel_y) < min_y) {
+				// ball will be too low on next iteration
 				let pos_y = min_y;
 				let vel_y = -vel_y;
 			}
 			else {
-				// ball is not near vertical walls
+				// ball is not near horizontal walls
 				let pos_y = pos_y + vel_y;
 			}
 		}
@@ -111,10 +107,10 @@ class Ball {
 
 		var int dist_x, dist_y;
 
-		dist_x = Math.abs(pos_x - other.get_x());
-		dist_y = Math.abs(pos_y - other.get_x());
+		let dist_x = Math.abs(pos_x - other.get_x());
+		let dist_y = Math.abs(pos_y - other.get_y());
 
-		if (Ball.distance(dist_x,dist_y) < 400){
+		if ((dist_x + dist_y) < Math.multiply(2,radius)){
 			//collision occurs
 			do other.flip_x();
 			do other.flip_y();
@@ -122,9 +118,5 @@ class Ball {
 			do flip_y();
 		}
 		return;
-	}
-
-	function int distance(int x, int y){
-		return (Math.multiply(x,x) + Math.multiply(y,y));
 	}
 }
