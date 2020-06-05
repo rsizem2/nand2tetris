@@ -1,0 +1,231 @@
+function Bat.new 0
+push constant 5
+call Memory.alloc 1
+pop pointer 0
+push argument 0
+pop this 0
+push argument 1
+pop this 1
+push argument 2
+pop this 2
+push argument 3
+pop this 3
+push constant 2
+pop this 4
+push pointer 0
+call Bat.show 1
+pop temp 0
+// return statement
+push pointer 0
+return
+// end subroutine Bat.new
+function Bat.dispose 0
+push argument 0
+pop pointer 0
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+// return statement
+push constant 0
+return
+// end subroutine Bat.dispose
+function Bat.show 0
+push argument 0
+pop pointer 0
+push constant 1
+neg
+call Screen.setColor 1
+pop temp 0
+push pointer 0
+call Bat.draw 1
+pop temp 0
+// return statement
+push constant 0
+return
+// end subroutine Bat.show
+function Bat.hide 0
+push argument 0
+pop pointer 0
+push constant 0
+call Screen.setColor 1
+pop temp 0
+push pointer 0
+call Bat.draw 1
+pop temp 0
+// return statement
+push constant 0
+return
+// end subroutine Bat.hide
+function Bat.draw 0
+push argument 0
+pop pointer 0
+push this 0
+push this 1
+push this 0
+push this 2
+add
+push this 1
+push this 3
+add
+call Screen.drawRectangle 4
+pop temp 0
+// return statement
+push constant 0
+return
+// end subroutine Bat.draw
+function Bat.setDirection 0
+push argument 0
+pop pointer 0
+push argument 1
+pop this 4
+// return statement
+push constant 0
+return
+// end subroutine Bat.setDirection
+function Bat.getLeft 0
+push argument 0
+pop pointer 0
+// return statement
+push this 0
+return
+// end subroutine Bat.getLeft
+function Bat.getRight 0
+push argument 0
+pop pointer 0
+// return statement
+push this 0
+push this 2
+add
+return
+// end subroutine Bat.getRight
+function Bat.setWidth 0
+push argument 0
+pop pointer 0
+push pointer 0
+call Bat.hide 1
+pop temp 0
+push argument 1
+pop this 2
+push pointer 0
+call Bat.show 1
+pop temp 0
+// return statement
+push constant 0
+return
+// end subroutine Bat.setWidth
+function Bat.move 0
+push argument 0
+pop pointer 0
+// if statement
+push this 4
+push constant 1
+eq
+not
+if-goto ELSE0
+push this 0
+push constant 4
+sub
+pop this 0
+// if statement
+push this 0
+push constant 0
+lt
+not
+if-goto ELSE1
+push constant 0
+pop this 0
+goto IF1
+label ELSE1
+label IF1
+push constant 0
+call Screen.setColor 1
+pop temp 0
+push this 0
+push this 2
+add
+push constant 1
+add
+push this 1
+push this 0
+push this 2
+add
+push constant 4
+add
+push this 1
+push this 3
+add
+call Screen.drawRectangle 4
+pop temp 0
+push constant 1
+neg
+call Screen.setColor 1
+pop temp 0
+push this 0
+push this 1
+push this 0
+push constant 3
+add
+push this 1
+push this 3
+add
+call Screen.drawRectangle 4
+pop temp 0
+goto IF0
+label ELSE0
+push this 0
+push constant 4
+add
+pop this 0
+// if statement
+push this 0
+push this 2
+add
+push constant 511
+gt
+not
+if-goto ELSE2
+push constant 511
+push this 2
+sub
+pop this 0
+goto IF2
+label ELSE2
+label IF2
+push constant 0
+call Screen.setColor 1
+pop temp 0
+push this 0
+push constant 4
+sub
+push this 1
+push this 0
+push constant 1
+sub
+push this 1
+push this 3
+add
+call Screen.drawRectangle 4
+pop temp 0
+push constant 1
+neg
+call Screen.setColor 1
+pop temp 0
+push this 0
+push this 2
+add
+push constant 3
+sub
+push this 1
+push this 0
+push this 2
+add
+push this 1
+push this 3
+add
+call Screen.drawRectangle 4
+pop temp 0
+label IF0
+// return statement
+push constant 0
+return
+// end subroutine Bat.move

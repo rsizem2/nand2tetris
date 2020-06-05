@@ -1,11 +1,13 @@
 """
 A Jack source code analyzer based on the implementaton contract from Chapter 10 of 'The Elements of Computing Systems'.
 
-This script defines 3 classes:
+This script defines 5 classes:
 
     - JackAnalyzer - communicates between the tokenizer and compilation engine
-    - JackTokenizer - tokenizes a JACK source file, ignoring commens and
+    - JackTokenizer - tokenizes a JACK source file, ignoring comments and whitespace
     - CompilationEngine - compiles the tokens into VM code
+    - VMWriter - 
+    - SymbolTable
 
 """
 
@@ -49,14 +51,13 @@ class JackTokenizer():
 
     def __init__(self, filename):
         self._name = filename
-        print(self._name)
         self._input = self.remove_comments(filename)
         # REGEX to check if string begins with symbol
         self._symbol = re.compile('^[\{\}\(\)\[\]\.,;\+\-\*/&\|<>=~]')
         # REGEX to check if string begins with integer
         self._integer = re.compile('^[0-9]+')
         # REGEX to check for keyword
-        self._keyword = re.compile('^(class|constructor|function|method|field|static|var|int|char|boolean|void|true|false|null|this|let|do|if|else|while|return)')
+        self._keyword = re.compile('^(class|constructor|function|method|field|static|var|int|char|boolean|void|true|false|null|this|let|do|if|else|while|return)(?=[\W]+)')
         # REGEX to check for string constant
         self._string = re.compile('^["][^"]+["]')
         # REGEX to check for identifier, also flags keywords
@@ -66,7 +67,7 @@ class JackTokenizer():
         self._backup = None
         self._finished = True
         self.tokenize(self._input)
-        self.write_tokens()
+        #self.write_tokens()
         self._token = None
         self._type = None
         self._labels = dict()
@@ -86,7 +87,7 @@ class JackTokenizer():
                 continue
             match = self._integer.match(string)
             if match:
-                # next token is symbol
+                # next token is integer
                 start, end = match.span()
                 tokens.append(string[start:end])
                 types.append('integerConstant')
@@ -94,7 +95,7 @@ class JackTokenizer():
                 continue
             match = self._keyword.match(string)
             if match:
-                # next token is symbol
+                # next token is keyword
                 start, end = match.span()
                 tokens.append(string[start:end])
                 types.append('keyword')
@@ -102,7 +103,7 @@ class JackTokenizer():
                 continue
             match = self._string.match(string)
             if match:
-                # next token is symbol
+                # next token is string
                 start, end = match.span()
                 tokens.append(string[start+1:end-1]) # drop the enclosing double quotes
                 types.append('stringConstant')
@@ -169,6 +170,9 @@ class JackTokenizer():
         else:
             self._token, self._type = temp
 
+    def debug(self):
+        # only called in the case of an AssertionError
+        print(self._tokens)
 
     def peek(self):
         try:
@@ -275,6 +279,9 @@ class CompilationEngine():
         # Input should be a tokenized .jack file containing one class
         assert self._tokenizer.has_more_tokens()
         self._tokenizer.advance()
+        self._class = None
+        self._subroutine = None
+        self._counter = 0
         self.compile_class()
         self.close()
 
@@ -293,24 +300,27 @@ class CompilationEngine():
 
     def close(self):
         # close the output file at the end
-        self._vmfile.close()
+        self._writer.close()
 
     def compile_class(self):
-        # assumes first token is keyword 'class'
+        # 'class' className '{' classVarDec* subroutineDec* '}'
+        # keyword - class
         assert self._tokenizer.keyword() == 'class'
         self._tokenizer.advance()
-        # assumes next token is an identifier, the class name
+        # identifier - className
         assert self._tokenizer.identifier()
+        self._class = self._tokenizer.identifier()
         self._tokenizer.advance()
-        # assumes next token is opening bracket
+        # sybmol - '{'
         assert self._tokenizer.symbol() == '{', "expected '{' but got " + self.get_token()
         self._tokenizer.advance()
-        # recursively checks for static/field variables, runs corresponding methods
+        # classVarDec*
         while self._tokenizer.is_valid_class_variable():
             self.compile_class_var()
+        # subroutineBody*
         while self._tokenizer.is_valid_subroutine():
             self.compile_subroutine()
-        # after processing class variables/methods, assumes closing bracket
+        # sybmol - '}'
         assert self._tokenizer.symbol() == '}', "expected '}' but got " + self.get_token()
         self._tokenizer.advance()
         # assuming .jack file is properly formatted, there should be no more tokens
@@ -318,27 +328,28 @@ class CompilationEngine():
 
 
     def compile_class_var(self):
-        # this method should not be called if the following assertion isn't true
+        # ('static'|'field') type varName (',' varName)* ';'
         assert self._tokenizer.is_valid_class_variable()
-        # next token indicates the kind of class variable: static/field
+        # keyword - 'static' or 'field'
         temp_kind = self._tokenizer.get_token()
         self._tokenizer.advance()
-        # next token should be int/char/boolean or class name
+        # type - 'int' or 'char' or 'boolean' or className
         assert self._tokenizer.is_valid_type()
         temp_type = self._tokenizer.get_token()
         self._tokenizer.advance()
-        # next token should be an identifier
+        # identifier - varName
         assert self._tokenizer.identifier()
         temp_name = self._tokenizer.get_token()
         self._symbols.define(temp_name, temp_type, temp_kind)
         self._tokenizer.advance()
-        # recursively check for another variable of the same type, separated by ','
+        # recursively check for (',' varName)*  structure
         while self._tokenizer.symbol() == ',':
             self._tokenizer.advance()
-            # next token should be an identifier for a variable name
+            # identifier - varName
             assert self._tokenizer.identifier()
             temp_name = self._tokenizer.get_token()
             self._symbols.define(temp_name, temp_type, temp_kind)
+            # symbol - ',' or ';'
             self._tokenizer.advance()
         # next token should be a ';'
         assert self._tokenizer.symbol() == ';', "expected ';' but got " + self.get_token()
@@ -346,279 +357,356 @@ class CompilationEngine():
 
 
     def compile_subroutine(self):
-        # first token should be a kind of subroutine: constructor, method, function
+        # ('constructor'|'method'|'function') ('void'| type) subroutineName '(' parameterList ')' subroutineBody
         assert self._tokenizer.is_valid_subroutine()
+        self._symbols.start_subroutine()
+        # keyword - constructor or method or function
+        self._subroutine = self._tokenizer.get_token()
+        if self._subroutine == 'method':
+            # in the case of method, add 'this' to symbol table
+            self._symbols.define('this', self._class, 'argument')
         self._tokenizer.advance()
-        # next token should be return type of subroutine
+        # keyword - type or void
         assert self._tokenizer.is_valid_subroutine_type()
         self._tokenizer.advance()
-        # next token is identifier for the subroutine name
+        # identifier - subroutineName
         assert self._tokenizer.identifier()
+        temp_name = self._tokenizer.identifier()
         self._tokenizer.advance()
-        # next token should be opening parenthesis
+        # symbol - '('
         assert self._tokenizer.symbol() == '('
         self._tokenizer.advance()
-        # add parameter list, if next token indicated a parameter type
+        # parameterList
         if self._tokenizer.is_valid_type():
             self.compile_parameter_list()
-        # next token should be closing parenthesis
+        # symbol - '('
         assert self._tokenizer.symbol() == ')'
         self._tokenizer.advance()
-        # next token should be opening bracket
+        temp_name = self._class + '.' + temp_name
+        # symbol - '{'
         assert self._tokenizer.symbol() == '{'
-        # compile the subroutine body
-        self.compile_subroutine_body()
-        # last token should be closing parenthesis, indicating end of subroutine body
-        assert self._tokenizer.symbol() == '}'
-        self._tokenizer.advance()
-
-
-    def compile_subroutine_body(self):
-        # should only be called within subroutine declation, current token is '{'
-        assert self._tokenizer.symbol() == '{'
-        self._tokenizer.advance()
-        # next token should be a keyword
-        assert self._tokenizer.keyword()
-        # check for zero or more variable declarations
-        while self._tokenizer.keyword() == 'var':
-            self.compile_var()
-        # next token doesn't indicate a variable declarion, must be a statement
-        self.compile_statements()
-        # next token must be closing bracket, ending the subroutine body
-        assert self._tokenizer.symbol() == '}'
+        # subroutineBody
+        self.compile_subroutine_body(temp_name)
+        self._writer.write_comment('end subroutine ' + temp_name)
 
 
     def compile_parameter_list(self):
-        # should only be called if next symbol is a type
+        # ( (type varName) (',' type varName)* )?
+        # only called if non-empty parameter list
         assert self._tokenizer.is_valid_type()
+        # type - int or char or boolean or className
         temp_type = self._tokenizer.get_token()
         self._tokenizer.advance()
-        # next token is identifier, the variable name
+        # identifier - varName
         assert self._tokenizer.identifier()
         temp_name = self._tokenizer.get_token()
         self._symbols.define(temp_name, temp_type, 'argument')
         self._tokenizer.advance()
         while self._tokenizer.symbol() == ',':
+            # symbol - ','
             self._tokenizer.advance()
             assert self._tokenizer.is_valid_type()
+            # type - int or char or boolean or className
             temp_type = self._tokenizer.get_token()
             self._tokenizer.advance()
-            # next token is identifier, the variable name
+            # identifier - varName
             assert self._tokenizer.identifier()
             temp_name = self._tokenizer.get_token()
             self._symbols.define(temp_name, temp_type, 'argument')
             self._tokenizer.advance()
-        # parameter list ends when closing parenthesis encountered
+        # symbol - ')'
         assert self._tokenizer.symbol() == ')'
 
-    def compile_var(self):
-        assert self._tokenizer.is_valid_variable()
+
+    def compile_subroutine_body(self, name):
+        # '{' varDec* statements '}'
+        # symbol - '{'
+        assert self._tokenizer.symbol() == '{'
         self._tokenizer.advance()
-        # next token should be a type or class name
+        # varDec
+        num_locals = 0
+        while self._tokenizer.keyword() == 'var':
+            # remember that compiling variables writes NO vm code
+            num_locals += self.compile_var()
+        self._writer.write_function(name, num_locals)
+        if self._subroutine == 'method':
+            # set this, in the case of a method
+            self._writer.write_push('argument',0)
+            self._writer.write_pop('pointer',0)
+        elif self._subroutine == 'constructor':
+            # allocate object
+            self._writer.write_object_alloc(self._symbols.var_count('field'))
+        # statements
+        self.compile_statements()
+        # symbol - '{'
+        assert self._tokenizer.symbol() == '}'
+        self._tokenizer.advance()
+
+
+    def compile_var(self):
+        # 'var' type varName (',' varName)* ';'
+        assert self._tokenizer.is_valid_variable()
+        # keyword - 'var'
+        self._tokenizer.advance()
+        # type - int or char or boolean or className
         assert self._tokenizer.is_valid_type()
         temp_type = self._tokenizer.get_token()
         self._tokenizer.advance()
-        # next token should be an identifier
+        # identifier - varName
         assert self._tokenizer.identifier()
         temp_name = self._tokenizer.get_token()
         self._symbols.define(temp_name, temp_type, 'local')
+        num_locals = 1
         self._tokenizer.advance()
-        # recursively check for other variable of the same time, separated by ','
         while self._tokenizer.symbol() == ',':
+            # symbol - ','
             self._tokenizer.advance()
-            # next token should be an identifier for a variable name
+            # identifier - varName
             assert self._tokenizer.identifier()
             temp_name = self._tokenizer.get_token()
             self._symbols.define(temp_name, temp_type, 'local')
+            num_locals += 1
             self._tokenizer.advance()
-        # next token should be a ';'
+        # symbol - ';'
         assert self._tokenizer.symbol() == ';'
         self._tokenizer.advance()
+        return num_locals
 
 
     def compile_statements(self):
+        # statement*
         while self._tokenizer.is_valid_statement():
             if self._tokenizer.keyword() == 'let':
+                # letStatement
                 self.compile_let()
             elif self._tokenizer.keyword() == 'if':
+                # ifStatement
                 self.compile_if()
             elif self._tokenizer.keyword() == 'while':
+                # whileStatement
                 self.compile_while()
             elif self._tokenizer.keyword() == 'do':
+                # doStatement
                 self.compile_do()
             elif self._tokenizer.keyword() == 'return':
+                # returnStatement
                 self.compile_return()
-        # block of statements ends with a closing bracket
+        # symbol - '}'
         assert self._tokenizer.symbol() == '}'
 
-
-    def compile_do(self):
-        assert self._tokenizer.keyword() == 'do'
-        self._tokenizer.advance()
-        # next token should be a subroutine name
-        assert self._tokenizer.identifier()
-        if self._tokenizer.identifier() and self._tokenizer.peek() == '(':
-            # subroutine_name ( expression_list )
-            temp_name = self._tokenizer.get_token()
-            self._tokenizer.advance()
-            # next token is '('
-            self._tokenizer.advance()
-            self.compile_expression_list()
-            assert  self._tokenizer.symbol() == ')'
-            self._tokenizer.advance()
-        elif self._tokenizer.identifier() and self._tokenizer.peek() == '.':
-            # class . subroutine ( expression_list )
-            temp_name = self._tokenizer.get_token()
-            # look up name in symbol table, get type (should be a class)
-            temp_class = self._symbols.get_type(temp_name)
-            if temp_class is None:
-                # function or constructor
-                temp_class = temp_name
-                temp_nargs = 0
-            else:
-                # method
-                temp_nargs = 1
-            self._tokenizer.advance()
-            # next token is '.'
-            self._tokenizer.advance()
-            assert self._tokenizer.identifier()
-            # next token is subroutine name
-            temp_name += ('.' + self._tokenizer.get_token())
-            self._tokenizer.advance()
-            assert  self._tokenizer.symbol() == '('
-            self._tokenizer.advance()
-            temp_nargs += self.compile_expression_list()
-            self._writer.write_call(temp_name, temp_nargs)
-            assert  self._tokenizer.symbol() == ')'
-            self._tokenizer.advance()
-        # next token should be a ';'
-        assert self._tokenizer.symbol() == ';'
-        self._tokenizer.advance()
-
-
     def compile_let(self):
+        # 'let' varName ('[' expression ']')? '=' expression ';'
+        # keyword - 'let'
         assert self._tokenizer.keyword() == 'let'
         self._tokenizer.advance()
-        # next token should be a variable name
+        # identifier - varName
         assert self._tokenizer.identifier()
-        self._tokenizer.advance()
-        # check if array
-        if self._tokenizer.symbol() == '[':
+        if self._tokenizer.peek() == '=':
+            # varName '=' expression ';'
+            var_kind = self._symbols.kind_of(self._tokenizer.identifier())
+            var_index = self._symbols.index_of(self._tokenizer.identifier())
             self._tokenizer.advance()
+            # next token is '='
+            self._tokenizer.advance()
+            # evaluate RHS expression, pop into variable
             self.compile_expression()
-            # expression ends with closing square bracket
-            assert self._tokenizer.symbol() == ']', "expected ']' but got " + self.get_token()
+            if var_kind == 'field':
+                self._writer.write_pop('this', var_index)
+            else:
+                self._writer.write_pop(var_kind, var_index)
+            # expression ends with a ';'
+            assert self._tokenizer.symbol() == ';', "expected ';' but got " + self.get_token()
             self._tokenizer.advance()
-        assert self._tokenizer.symbol() == '='
+        elif self._tokenizer.peek() == '[':
+            # varName '[' expression ']' '=' expression ';'
+            # write base address to stack
+            self._writer.write_push(self._symbols.kind_of(self._tokenizer.identifier()),
+                                    self._symbols.index_of(self._tokenizer.identifier()))
+            self._tokenizer.advance()
+            # symbol - '['
+            self._tokenizer.advance()
+            # expression - represents array index
+            self.compile_expression()
+            # base address + array index
+            self._writer.write_arithmetic('add')
+            # symbol - '['
+            assert self._tokenizer.symbol() == ']'
+            self._tokenizer.advance()
+            # symbol - '='
+            assert self._tokenizer.symbol() == '='
+            self._tokenizer.advance()
+            # expression
+            self.compile_expression()
+            # pop RHS value into temp segment
+            self._writer.write_pop('temp', 1)
+            # align that with array[i]
+            self._writer.write_pop('pointer', 1)
+            # push value of RHS expression onto stack
+            self._writer.write_push('temp', 1)
+            # pop value into correct array index
+            self._writer.write_pop('that', 0)
+            # symbol - ';'
+            assert self._tokenizer.symbol() == ';', "expected ';' but got " + self.get_token()
+            self._tokenizer.advance()
+
+
+    def compile_if(self):
+        # 'if' '(' expression ')' ('else' '{' statements '}')?
+        # keyword - if
+        assert self._tokenizer.keyword() == 'if'
+        self._writer.write_comment('if statement')
         self._tokenizer.advance()
-        # next set of tokens should represent an expression
+        # symbol - (
+        assert self._tokenizer.symbol() == '(', "expected '(' but got " + self.get_token()
+        self._tokenizer.advance()
+        # expression
         self.compile_expression()
-        # expression ends with a ';'
-        assert self._tokenizer.symbol() == ';', "expected ';' but got " + self.get_token()
+        self._writer.write_arithmetic('not')
+        label_num = str(self._counter)
+        self._counter += 1
+        self._writer.write_if('ELSE'+label_num)
+        # symbol - )
+        assert self._tokenizer.symbol() == ')', "expected '(' but got " + self.get_token()
         self._tokenizer.advance()
+        # symbol - '{'
+        assert self._tokenizer.symbol() == '{'
+        self._tokenizer.advance()
+        # statements
+        self.compile_statements()
+        # symbol - '}'
+        assert self._tokenizer.symbol() == '}'
+        self._tokenizer.advance()
+        self._writer.write_goto('IF'+label_num)
+        self._writer.write_label('ELSE'+label_num)
+        # check for else
+        if self._tokenizer.keyword() == 'else':
+            # 'else' '{' statements '}'
+            # keyword - 'else'
+            self._tokenizer.advance()
+            # symbol - '{'
+            assert self._tokenizer.symbol() == '{', "expected '{' but got " + self.get_token()
+            self._tokenizer.advance()
+            # statements
+            self.compile_statements()
+            # symbol - '}'
+            assert self._tokenizer.symbol() == '}', "expected '}' but got " + self.get_token()
+            self._tokenizer.advance()
+        self._writer.write_label('IF'+label_num)
 
 
     def compile_while(self):
+        # 'while' '(' expression ')' '{' statements '}'
+        # keyword - 'while'
         assert self._tokenizer.keyword() == 'while'
+        # labels for ifgoto and goto vm commands
+        label_num = str(self._counter)
+        self._counter += 1
         self._tokenizer.advance()
-        # expects ( expression )
+        # symbol - '('
         assert self._tokenizer.symbol() == '('
         self._tokenizer.advance()
+        self._writer.write_label('WHILE'+label_num)
+        # expression
         self.compile_expression()
+        self._writer.write_arithmetic('not')
+        self._writer.write_if('ELSE'+label_num)
+        # symbol - ')'
         assert self._tokenizer.symbol() == ')'
         self._tokenizer.advance()
-        # expects { statements }
+        # symbol - '{'
         assert self._tokenizer.symbol() == '{'
         self._tokenizer.advance()
+        # statements
         self.compile_statements()
+        self._writer.write_goto('WHILE'+label_num)
+        self._writer.write_label('ELSE'+label_num)
+        # symbol - '}'
         assert self._tokenizer.symbol() == '}'
         self._tokenizer.advance()
 
+    def compile_do(self):
+        # 'do' subroutineCall ';'
+        assert self._tokenizer.keyword() == 'do'
+        # keyword - 'do'
+        self._tokenizer.advance()
+        # identifier - subroutineCall
+        assert self._tokenizer.identifier()
+        # outer subroutine must be void function
+        self.compile_subroutine_call()
+        # symbol - ';'
+        assert self._tokenizer.symbol() == ';'
+        # discard void function default return value
+        self._writer.write_pop('temp',0)
+        self._tokenizer.advance()
+
+
 
     def compile_return(self):
+        # 'return' expression? ';'
+        # keyword - 'return'
         assert self._tokenizer.keyword() == 'return'
+        self._writer.write_comment('return statement')
         self._tokenizer.advance()
-        # check for optional expression
+        # expression?
         if self._tokenizer.symbol() == ';':
-            # no expression
+            # symbol - ';' (void function)
             self._writer.write_push('constant', 0)
             self._tokenizer.advance()
         else:
-            # has expression
+            # expression (not void)
             self.compile_expression()
+            # symbol - ';'
             assert self._tokenizer.symbol() == ';'
             self._tokenizer.advance()
         self._writer.write_return()
 
 
-    def compile_if(self):
-        assert self._tokenizer.keyword() == 'if'
-        self._tokenizer.advance()
-        # expects ( expression )
-        assert self._tokenizer.symbol() == '(', "expected '(' but got " + self.get_token()
-        self._tokenizer.advance()
-        self.compile_expression()
-        assert self._tokenizer.symbol() == ')', "expected '(' but got " + self.get_token()
-        self._tokenizer.advance()
-        # expects { statements }
-        assert self._tokenizer.symbol() == '{'
-        self._tokenizer.advance()
-        self.compile_statements()
-        assert self._tokenizer.symbol() == '}'
-        self._tokenizer.advance()
-        # check for optional else block
-        if self._tokenizer.keyword() == 'else':
-            self._tokenizer.advance()
-            # expects { statements }
-            assert self._tokenizer.symbol() == '{', "expected '{' but got " + self.get_token()
-            self._tokenizer.advance()
-            self.compile_statements()
-            assert self._tokenizer.symbol() == '}', "expected '}' but got " + self.get_token()
-            self._tokenizer.advance()
-
-
     def compile_expression(self):
         # term (op term)*
+        # term
         self.compile_term()
-        # 'recursive' check for optional (op term)*
+        # check for op
         while self._tokenizer.is_valid_operator():
-            # op token
+            # op
             temp_op = self._tokenizer.symbol()
             self._tokenizer.advance()
-            # process term
+            # term
             self.compile_term()
             # write operator vm command, postfix order
             self._writer.write_operator(temp_op)
 
 
     def compile_term(self):
+        # integerConstant | stringConstant | keywordConstant | varName |
+        # varName '[' expression']' | subroutineCall | '(' expression ')' | unaryOp term
         if self._tokenizer.int_value() is not None:
-            # integer constant
-            self._writer.write_pop('constant', self._tokenizer.int_value())
+            # integerConstant
+            self._writer.write_push('constant', self._tokenizer.int_value())
             self._tokenizer.advance()
         elif self._tokenizer.string_value() is not None:
-            # string constant
+            # stringConstant
             self._writer.write_string_constant(self._tokenizer.string_value())
             self._tokenizer.advance()
         elif self._tokenizer.keyword() is not None:
-            # keyword constant
+            # keywordConstant
             self._writer.write_keyword_constant(self._tokenizer.keyword())
             self._tokenizer.advance()
         elif self._tokenizer.symbol() == '(':
-            # ( expression )
+            # '(' expression ')'
             self._tokenizer.advance()
             self.compile_expression()
             assert self._tokenizer.symbol() == ')'
             self._tokenizer.advance()
         elif self._tokenizer.is_valid_unary():
-            # unary operator
+            # unaryOp term
             temp_op = self._tokenizer.symbol()
             self._tokenizer.advance()
+            # term
             self.compile_term()
             # write operator vm command, postfix order
-            self._writer.write_operator(temp_op)
+            self._writer.write_unary(temp_op)
         elif self._tokenizer.identifier() and self._tokenizer.peek() == '[':
-            # array [ expression ]
+            # varName '[' expression']'
             # process array name, push associated value onto stack
             self._writer.write_push(self._symbols.kind_of(self._tokenizer.identifier()),
                                     self._symbols.index_of(self._tokenizer.identifier()))
@@ -630,35 +718,99 @@ class CompilationEngine():
             # setup pointer to array element
             self._writer.write_operator('+')
             self._writer.write_pop('pointer', 1)
+            # push array value onto stack
+            self._writer.write_push('that', 0)
             # expects closing square bracket
             assert self._tokenizer.symbol() == ']'
             self._tokenizer.advance()
-        elif self._tokenizer.identifier() and self._tokenizer.peek() == '(':
-            # subroutine_name ( expression_list )
-            self._tokenizer.advance()
-            self._tokenizer.advance()
-            self.compile_expression_list()
-            assert  self._tokenizer.symbol() == ')'
-            self._tokenizer.advance()
-        elif self._tokenizer.identifier() and self._tokenizer.peek() == '.':
-            # class . subroutine ( expression_list )
-            self._tokenizer.advance()
-            self._tokenizer.advance()
-            assert self._tokenizer.identifier()
-            self._tokenizer.advance()
-            assert  self._tokenizer.symbol() == '('
-            self._tokenizer.advance()
-            self.compile_expression_list()
-            assert  self._tokenizer.symbol() == ')'
-            self._tokenizer.advance()
-        elif self._tokenizer.identifier():
-            # variable_name
-            self._writer.write_push(self._symbols.kind_of(self._tokenizer.identifier()),
-                                    self._symbols.index_of(self._tokenizer.identifier()))
+        elif self._tokenizer.identifier() and self._tokenizer.peek() in ['(','.']:
+            # subroutineCall
+            self.compile_subroutine_call()
+        elif self._symbols.exists(self._tokenizer.identifier()):
+            # varName
+            var_name = self._tokenizer.identifier()
+            var_kind = self._symbols.kind_of(var_name)
+            var_index = self._symbols.index_of(var_name)
+            if var_kind == 'field':
+                # push field var onto stack
+                self._writer.write_push('this', var_index)
+            else:
+                self._writer.write_push(var_kind, var_index)
             self._tokenizer.advance()
         else:
             assert False, "unknown token: " + self.get_token() + " with type " + self.get_type()
 
+    def compile_subroutine_call(self):
+        # subroutineName '(' expressionList ')'| (className | varName) '.' subroutineName '(' expressionList ')'
+        assert self._tokenizer.identifier() and self._tokenizer.peek() in ['(','.']
+        if self._tokenizer.identifier() and self._tokenizer.peek() == '(':
+            # subroutineName '(' expressionList ')'
+            # method (in current class)
+            temp_name = self._class + '.' + self._tokenizer.identifier()
+            self._tokenizer.advance()
+            # symbol - '('
+            self._tokenizer.advance()
+            # push this onto the stack
+            self._writer.write_push('pointer',0)
+            temp_nargs = 1
+            # expressionList
+            temp_nargs += self.compile_expression_list()
+            self._writer.write_call(temp_name, temp_nargs)
+            # symbol - ')'
+            assert  self._tokenizer.symbol() == ')'
+            self._tokenizer.advance()
+        elif self._symbols.exists(self._tokenizer.identifier()) and self._tokenizer.peek() == '.':
+            # varName '.' subroutineName '(' expressionList ')'
+            # varName (object)
+            temp_name = self._tokenizer.identifier()
+            # push object address onto stack, this is an implicit argument
+            if self._symbols.kind_of(temp_name) == 'field':
+                self._writer.write_push('this',
+                                        self._symbols.index_of(temp_name))
+            else: 
+                self._writer.write_push(self._symbols.kind_of(temp_name),
+                                        self._symbols.index_of(temp_name))
+            # change name to class name
+            temp_name = self._symbols.type_of(temp_name)
+            temp_nargs = 1
+            self._tokenizer.advance()
+            # symbol - '.'
+            temp_name += self._tokenizer.get_token()
+            self._tokenizer.advance()
+            # subroutineName
+            assert self._tokenizer.identifier()
+            temp_name += self._tokenizer.identifier()
+            self._tokenizer.advance()
+            # symbol - '('
+            assert self._tokenizer.symbol() == '('
+            self._tokenizer.advance()
+            # expressionList
+            temp_nargs += self.compile_expression_list()
+            self._writer.write_call(temp_name, temp_nargs)
+            # symbol - '('
+            assert  self._tokenizer.symbol() == ')'
+            self._tokenizer.advance()
+        elif self._tokenizer.identifier() and self._tokenizer.peek() == '.':
+            # className . subroutineName '(' expressionList ')'
+            # className
+            temp_name = self._tokenizer.identifier()
+            self._tokenizer.advance()
+            # symbol - '.'
+            temp_name += self._tokenizer.get_token()
+            self._tokenizer.advance()
+            # subroutineName
+            assert self._tokenizer.identifier(), print(self._tokenizer._tokens)
+            temp_name += self._tokenizer.identifier()
+            self._tokenizer.advance()
+            # symbol - '('
+            assert self._tokenizer.symbol() == '('
+            self._tokenizer.advance()
+            # expressionList
+            temp_nargs = self.compile_expression_list()
+            self._writer.write_call(temp_name, temp_nargs)
+            # symbol - ')'
+            assert  self._tokenizer.symbol() == ')'
+            self._tokenizer.advance()
 
     def compile_expression_list(self):
         # (expression ( ',' expression)* )?
@@ -679,16 +831,29 @@ class SymbolTable():
         self._subroutine = dict()
         self._static = 0
         self._field = 0
+        self._local = 0
         self._arg = 0
-        self._var = 0
 
 
     def start_subroutine(self):
-        # clears the old subroutine dictionary, if it exists
+        # clears the old subroutine dictionary, if it exis
         self._subroutine = dict()
         self._arg = 0
-        self._var = 0
+        self._local = 0
 
+    def print_class_table(self, class_name):
+        # for debugging the symbol tables
+        print('class scope symbol table for', class_name, ':\n')
+        for key, value in self._class.items():
+            print(key, value)
+        print('\n')
+
+    def print_subroutine_table(self, subroutine_name):
+        # for debugging the symbol tables
+        print('subroutine scope symbol table for', subroutine_name, ':\n')
+        for key, value in self._subroutine.items():
+            print(key, value)
+        print('\n')
 
     def define(self, var_name, var_type, kind):
         if kind == 'static':
@@ -697,14 +862,14 @@ class SymbolTable():
         elif kind == 'field':
             self._class[var_name] = Symbol(var_type, kind, self._field)
             self._field += 1
-        elif kind == 'arg':
+        elif kind == 'local':
+            self._subroutine[var_name] = Symbol(var_type, kind, self._local)
+            self._local += 1
+        elif kind == 'argument':
             self._subroutine[var_name] = Symbol(var_type, kind, self._arg)
             self._arg += 1
-        elif kind == 'var':
-            self._subroutine[var_name] = Symbol(var_type, kind, self._var)
-            self._var += 1
         else:
-            assert False, "invalid var_type given."
+            assert False, "invalid var_type given: " + kind
 
 
     def var_count(self, kind):
@@ -712,12 +877,16 @@ class SymbolTable():
             return self._static
         elif kind == 'field':
             return self._field
-        elif kind == 'arg':
+        elif kind == 'local':
+            return self._local
+        elif kind == 'argument':
             return self._arg
-        elif kind == 'var':
-            return self._var
         else:
             assert False, "invalid var_type given."
+
+    def exists(self, var_name):
+        # check if variable with this name exists
+        return var_name in self._class or var_name in self._subroutine
 
 
     def kind_of(self, var_name):
@@ -763,12 +932,23 @@ class VMWriter():
         self._file = open(filename, 'w')
 
     # helper functions
+    
+    def write_object_alloc(self, size):
+        # allocate space for object on heap, sets pointer to 'this'
+        self.write_push('constant', size)
+        self.write_call('Memory.alloc', 1)
+        self.write_pop('pointer',0)
+        
+    def write_array_alloc(self, size):
+        # puts base address of array on heap
+        self.write_push('constant', size)
+        self.write_call('Memory.alloc', 1)
 
     def write_string_constant(self, string):
         # push length of string
         self.write_push('constant',len(string))
         # call String.new, which returns 'this'
-        self.write_call('String.new', 2)
+        self.write_call('String.new', 1)
         for char in string:
             # push int value of char
             self.write_push('constant',ord(char))
@@ -793,15 +973,15 @@ class VMWriter():
             self._file.writelines(['add\n'])
         elif op == '-':
             self._file.writelines(['sub\n'])
-        if op == '*':
-            self._file.writelines(['mult\n'])
+        elif op == '*':
+            self.write_call('Math.multiply', 2)
         elif op == '/':
             self.write_call('Math.divide', 2)
-        if op == '&':
+        elif op == '&':
             self._file.writelines(['and\n'])
         elif op == '|':
             self._file.writelines(['or\n'])
-        if op == '<':
+        elif op == '<':
             self._file.writelines(['lt\n'])
         elif op == '>':
             self._file.writelines(['gt\n'])
@@ -818,10 +998,13 @@ class VMWriter():
         else:
             assert False, 'bad operator given: ' + str(op)
 
+    def write_comment(self, string):
+        self._file.writelines(['// '+string+'\n'])
 
     # the following are the atomic vm commands
 
     def write_push(self, segment, index):
+        
         # push segment index
         self._file.writelines(['push ' + segment + ' ' + str(index) + '\n'])
 
