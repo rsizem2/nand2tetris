@@ -1,6 +1,6 @@
 # README
 
-This repository contains my scripts for realizing the JACK software hierarchy as described in "The Elements of Computing Systems". These solutions mostly follow the APIs outlined in the book with some minor changes and additions, all written in Python except for the OS files which are written in the HACK language.
+This repository contains my scripts for realizing the JACK software hierarchy as described in "The Elements of Computing Systems". These solutions mostly follow the APIs outlined in the book with some minor changes and additions, all written in Python except for the OS files which are written in the HACK language. All of this work was done between April and May 2020, however I may clean up some of the files in the future.
 
 # Assembler
 
