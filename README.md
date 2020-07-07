@@ -19,15 +19,6 @@ Converts intermediate .vm code into HACK .asm code which can then be assembled i
 * Parser - preprocesses input file, outputs each vm command one by one.
 * CodeWriter - outputs .asm based on input given by the parser.
 
-# Example JACK Program
-
-A simple JACK program demonstrating simplified collision physics.
-
-* Main.jack - initializes the screens, asks for user input, initializes the two balls
-* Ball.jack - implements a simple ball which can collide with another ball object
-
-All other files are copied from the supplied JACK OS, which are needed to run our program.
-
 # JACK Compiler
 
 Converts JACK source code into the intermediate .vm code, which can then by further using the VM translators and Assembler. Run using 'python JackCompiler.py <filename>' where filename is either a .jack file or a folder containing multiple .jack files. If given a single file, will create '<filename>.vm' with the resulting translated code, otherwise creates one such file for each .jack source file in the given directory. The Compiler contains the following classes:
@@ -39,7 +30,3 @@ Converts JACK source code into the intermediate .vm code, which can then by furt
 * VMWriter - handles the writing of the VM code to the output .vm file.
 
 There is also a JACKAnalyzerXML.py which parses the input .jack source into it's corresponding parse tree, visualized in XML.
-
-# JACK OS files
-
-Implementation of the various basic JACK OS components such as memory allocation, and i/o operations.
